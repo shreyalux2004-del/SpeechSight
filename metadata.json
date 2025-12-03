@@ -1,0 +1,7 @@
+{
+  "name": "SpeechSight",
+  "description": "A clinical-grade speech analysis tool for SLPs focusing on resonance, prosody, and articulation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
