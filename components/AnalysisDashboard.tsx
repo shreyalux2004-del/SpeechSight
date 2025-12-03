@@ -1,12 +1,13 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, ReferenceLine, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
   LineChart, Line, ScatterChart, Scatter, ZAxis, PieChart, Pie
 } from 'recharts';
-import { Activity, Waves, Layers, Mic, AlertCircle, RefreshCw, Speech, Repeat, GitCompare, ArrowRight, User, Baby, Flag, Stethoscope, Wind, Play, Pause, Volume2, AlertTriangle, TrendingUp, Timer, Scale, Calculator, Info, Target, AlignCenter, ArrowLeftRight, ChevronDown, ChevronUp, BrainCircuit, Mic2, PauseCircle, FastForward, Bot, Star, FileText, Calendar, Save, Check, Layout, X, Music } from 'lucide-react';
-import { AnalysisResult, BiologicalSex, Demographic, ClinicalImpression, ClinicProfile, ClientDetails, TherapyNote, ViewMode, AssessmentDomain } from '../types';
+import { Activity, Waves, Layers, Mic, AlertCircle, RefreshCw, Speech, Repeat, GitCompare, ArrowRight, User, Baby, Flag, Stethoscope, Wind, Play, Pause, Volume2, AlertTriangle, TrendingUp, Timer, Scale, Calculator, Info, Target, AlignCenter, ArrowLeftRight, ChevronDown, ChevronUp, BrainCircuit, Mic2, PauseCircle, FastForward, Bot, Star, FileText, Calendar, Save, Check, Layout, X, Music, CheckCircle, FileOutput } from 'lucide-react';
+import { AnalysisResult, BiologicalSex, Demographic, ClinicalImpression, ClinicProfile, ClientDetails, TherapyNote, ViewMode, AssessmentDomain, ProtocolDef } from '../types';
 import { MetricCard } from './MetricCard';
 import { ReportGenerator } from './ReportGenerator';
 import { ClientManager } from './ClientManager';
@@ -21,6 +22,8 @@ interface AnalysisDashboardProps {
   clientDetails: ClientDetails;
   onUpdateClient: (client: ClientDetails) => void;
   viewMode: ViewMode;
+  remainingTasks?: ProtocolDef[];
+  onNextTask?: (domain: AssessmentDomain, protocolId: string) => void;
 }
 
 const checkNorms = (val: number, metric: string, demographic: Demographic, sex: BiologicalSex) => {
@@ -67,7 +70,6 @@ const NaturalnessRater = ({ value, onChange }: { value?: number, onChange: (val:
   );
 };
 
-// ... (Other helper components kept the same for brevity, but ClinicalImpressionTag, AudioComparisonPlayer, PerceptualComparison, RatingScale would be here)
 const ClinicalImpressionTag = ({ value, onChange }: { value?: ClinicalImpression, onChange: (val: ClinicalImpression) => void }) => {
     const options: ClinicalImpression[] = ['Suspected CAS', 'Suspected Dysarthria', 'Normal', 'Inconclusive'];
     return (
@@ -132,32 +134,8 @@ const PerceptualComparison = ({ label, aiValue, slpValue, onChange, description,
     );
 };
 
-const RatingScale = ({ label, value, description, scaleMax = 3 }: { label: string, value: number, description: string, scaleMax?: number }) => {
-    const displayValue = (value / 3) * scaleMax;
-    const segments = Math.max(scaleMax, 3);
-    const getColor = (v: number) => { 
-        const ratio = v / scaleMax;
-        if (ratio < 0.33) return 'bg-emerald-500'; 
-        if (ratio < 0.66) return 'bg-yellow-400'; 
-        return 'bg-rose-600'; 
-    };
-    return (
-      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-        <div className="flex justify-between items-end mb-2">
-          <span className="text-sm font-bold text-slate-700">{label}</span>
-          <span className="text-xs font-semibold uppercase text-slate-400">{description}</span>
-        </div>
-        <div className="flex gap-1 h-3 mb-2">
-          {Array.from({length: segments + 1}, (_, i) => i).map((level) => (
-              <div key={level} className={`flex-1 rounded-sm ${displayValue >= level ? getColor(displayValue) : 'bg-slate-200'} ${Math.round(displayValue) === level ? 'ring-2 ring-slate-300' : 'opacity-40'}`} />
-          ))}
-        </div>
-      </div>
-    );
-};
 
-
-export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, onUpdateResult, onReset, onRetry, clinicProfile, onUpdateProfile, clientDetails, onUpdateClient, viewMode }) => {
+export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, onUpdateResult, onReset, onRetry, clinicProfile, onUpdateProfile, clientDetails, onUpdateClient, viewMode, remainingTasks, onNextTask }) => {
   const [selectedId, setSelectedId] = useState<string>(history[history.length - 1]?.id || '');
   const [isComparing, setIsComparing] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -182,7 +160,6 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
 
   if (!data) return <div>No Data</div>;
 
-  // ... (Keep existing handlers: handleSaveNote, handleSlpRatingUpdate, etc.)
   const handleSaveNote = () => {
       if (!currentNote.trim()) return;
       const existingIndex = clientDetails.notes.findIndex(n => n.sessionId === data.id);
@@ -237,7 +214,6 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
   const isParentMode = viewMode === 'Parent';
   const activeDomain = data.assessmentDomain;
 
-  // VISIBILITY FILTERING
   const shouldShow = (domain: AssessmentDomain) => {
       if (!activeDomain) return true; // Show all if no specific domain selected
       if (domain === 'articulation' && activeDomain === 'phonology') return true;
@@ -246,11 +222,11 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
   };
 
   return (
-    <div className="space-y-6 pb-20 animate-fade-in max-w-6xl mx-auto">
-      {/* ... (Keep existing ReportGenerator, ClientManager, Top Navigation) */}
+    <div className="space-y-6 pb-40 animate-fade-in max-w-6xl mx-auto">
       {showReport && (
           <ReportGenerator 
             data={data}
+            sessionHistory={history}
             comparisonData={comparisonData}
             clinicProfile={clinicProfile}
             onUpdateProfile={onUpdateProfile}
@@ -276,7 +252,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
                 onClick={() => { setSelectedId(attempt.id); setIsComparing(false); }}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${selectedId === attempt.id && !isComparing ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
              >
-               Attempt {idx + 1}
+               Task {idx + 1} ({attempt.protocolId})
              </button>
           ))}
           {history.length > 1 && !isParentMode && (
@@ -287,10 +263,10 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto px-2">
            <button onClick={() => setShowReport(true)} className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
-             <FileText size={16} /> Report
+             <FileText size={16} /> Full Report
            </button>
            <button onClick={onRetry} className="flex-1 md:flex-none px-4 py-2 bg-teal-50 text-teal-700 border border-teal-100 hover:bg-teal-100 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors">
-             <RefreshCw size={16} /> New Recording
+             <RefreshCw size={16} /> Retake Task
            </button>
         </div>
       </div>
@@ -703,20 +679,53 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
         )}
 
       </div>
-      
-      {/* Audio Playback Footer (if not comparing) */}
+
+      {/* --- SESSION WORKFLOW FOOTER --- */}
       {!isComparing && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-30 print:hidden">
-             <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-                 <div className="flex-1">
-                     <AudioComparisonPlayer clientAudioUrl={data.audioUrl} />
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-50 animate-in slide-in-from-bottom-4">
+             <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                 
+                 {/* Workflow Controls: Manual Selection */}
+                 <div className="flex items-center gap-4 w-full md:w-auto overflow-hidden">
+                    {remainingTasks && remainingTasks.length > 0 ? (
+                        <div className="flex flex-col md:flex-row items-start md:items-center gap-3 overflow-hidden">
+                            <span className="text-xs font-bold text-slate-500 uppercase whitespace-nowrap hidden lg:block">
+                                Continue ({remainingTasks.length} left):
+                            </span>
+                            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1 max-w-[300px] lg:max-w-[500px]">
+                                {remainingTasks.map(task => (
+                                    <button 
+                                        key={task.id}
+                                        onClick={() => onNextTask && onNextTask(task.category as AssessmentDomain, task.id)}
+                                        className="px-3 py-2 bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-600 rounded-lg text-xs font-bold shadow-sm transition-all whitespace-nowrap flex-shrink-0"
+                                    >
+                                        {task.title}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 whitespace-nowrap">
+                             <CheckCircle size={20} /> <span className="hidden md:inline">All Tasks Complete</span>
+                        </div>
+                    )}
+                    
+                    <div className="w-px h-8 bg-slate-200 mx-2 hidden md:block"></div>
+
+                    <button 
+                        onClick={() => setShowReport(true)}
+                        className={`px-5 py-2.5 rounded-xl font-bold border transition-all flex items-center justify-center gap-2 whitespace-nowrap ${remainingTasks && remainingTasks.length > 0 ? 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200' : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 shadow-lg'}`}
+                    >
+                        <FileOutput size={18} /> {remainingTasks && remainingTasks.length > 0 ? 'Report' : 'Final Report'}
+                    </button>
                  </div>
-                 <div className="flex items-center gap-4">
-                     {/* Notes Quick Entry */}
-                     <div className="relative">
+
+                 {/* Notes Quick Entry */}
+                 <div className="w-full md:w-auto flex items-center gap-4">
+                     <div className="relative w-full md:w-auto">
                          <div className={`absolute bottom-full right-0 mb-2 bg-slate-800 text-white text-xs px-2 py-1 rounded transition-opacity ${isNoteSaved ? 'opacity-100' : 'opacity-0'}`}>Saved!</div>
                          <textarea 
-                             className="w-64 h-12 rounded-lg border border-slate-300 p-2 text-xs focus:ring-2 focus:ring-teal-500 outline-none resize-none"
+                             className="w-full md:w-64 h-12 rounded-lg border border-slate-300 p-2 text-xs focus:ring-2 focus:ring-teal-500 outline-none resize-none"
                              placeholder="Quick therapy note..."
                              value={currentNote}
                              onChange={(e) => setCurrentNote(e.target.value)}
@@ -725,7 +734,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({ history, o
                      </div>
                  </div>
              </div>
-          </div>
+        </div>
       )}
     </div>
   );

@@ -1,10 +1,11 @@
 
+
 import React, { useState } from 'react';
-import { Activity, Mic, Wind, Brain, ChevronRight, Music, Volume2, Timer, X, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Activity, Mic, Wind, Brain, ChevronRight, Music, Volume2, Timer, X, CheckCircle2, ArrowLeft, PlayCircle } from 'lucide-react';
 import { AssessmentDomain } from '../types';
 
 interface LandingPageProps {
-  onStart: (domain: AssessmentDomain) => void;
+  onStart: (domain: AssessmentDomain, protocolId?: string) => void;
   initialDomainId?: AssessmentDomain | null;
 }
 
@@ -16,27 +17,38 @@ type DomainData = {
   color: string;
   bgClass: string;
   params: string[];
+  tasks: { id: string; label: string; desc?: string }[];
 };
 
 const ASSESSMENT_DOMAINS: DomainData[] = [
   {
-    id: 'prosody',
-    title: 'Prosody',
-    icon: Music,
-    desc: 'Intonation, stress, and rhythm analysis.',
-    color: 'text-indigo-600',
-    bgClass: 'bg-indigo-50 border-indigo-100 hover:border-indigo-200',
+    id: 'voice',
+    title: 'Voice',
+    icon: Volume2,
+    desc: 'Quality, pitch, and phonatory stability.',
+    color: 'text-amber-600',
+    bgClass: 'bg-amber-50 border-amber-100 hover:border-amber-200',
     params: [
-      'Pitch contour',
-      'Pitch variability',
-      'Stress pattern accuracy',
-      'Rhythm & pausing pattern',
-      'Rate of speech (WPM)',
-      'Prosody severity index'
+      'Pitch (F0)',
+      'Loudness',
+      'Quality (breathy/hoarse/strained)',
+      'Phonation range',
+      'Maximum phonation time',
+      'S/Z ratio',
+      'Voice handicap index'
+    ],
+    tasks: [
+      { id: 'vowels', label: 'Sustained Vowel', desc: '/a/, /i/, /u/' },
+      { id: 'mpd', label: 'Max Phonation Duration', desc: 'Respiratory Capacity' },
+      { id: 'sz_ratio', label: 'S/Z Ratio', desc: 'Laryngeal Efficiency' },
+      { id: 'pitch_glide', label: 'Pitch Glide', desc: 'High-Low Range' },
+      { id: 'loudness_var', label: 'Loudness Variation', desc: 'Dynamic Range' },
+      { id: 'grbas', label: 'GRBAS Rating', desc: 'Perceptual Quality' },
+      { id: 'reading_voice', label: 'Reading Passage', desc: 'Connected Speech' }
     ]
   },
   {
-    id: 'articulation', // Acts as Articulation / Phonology
+    id: 'articulation',
     title: 'Articulation',
     icon: Mic,
     desc: 'Precision, accuracy, and error detection.',
@@ -49,6 +61,14 @@ const ASSESSMENT_DOMAINS: DomainData[] = [
       'Place–manner–voicing error patterns',
       'Substitutions, omissions, distortions',
       'Stimulability'
+    ],
+    tasks: [
+      { id: 'words', label: 'Word List', desc: 'General Screening' },
+      { id: 'repetition', label: 'Repetition', desc: 'Sentence Level' },
+      { id: 'conversation', label: 'Conversation', desc: 'Spontaneous' },
+      { id: 'phoneme_words', label: 'Phoneme-Specific', desc: 'Targeted Sounds' },
+      { id: 'minimal_pairs', label: 'Minimal Pairs', desc: 'Contrast Analysis' },
+      { id: 'picture_naming', label: 'Picture Naming', desc: 'Confrontation' }
     ]
   },
   {
@@ -66,23 +86,38 @@ const ASSESSMENT_DOMAINS: DomainData[] = [
       'Oral vs nasal airflow graph',
       'Nasal Resonance Index',
       'Oral vs nasal sentence comparison'
+    ],
+    tasks: [
+      { id: 'oral', label: 'Standard Oral Sentences', desc: 'No Nasals' },
+      { id: 'nasal', label: 'Standard Nasal Sentences', desc: 'Nasal Loaded' },
+      { id: 'mixed', label: 'Mixed Sentences', desc: 'General Balance' },
+      { id: 'high_pressure', label: 'High-Pressure Words', desc: 'Check Emissions' },
+      { id: 'nasal_words', label: 'Nasal-Only Words', desc: 'Check Hyponasality' },
+      { id: 'spontaneous_res', label: 'Spontaneous Speech', desc: 'Resonance Check' }
     ]
   },
   {
-    id: 'voice',
-    title: 'Voice',
-    icon: Volume2,
-    desc: 'Quality, pitch, and phonatory stability.',
-    color: 'text-amber-600',
-    bgClass: 'bg-amber-50 border-amber-100 hover:border-amber-200',
+    id: 'prosody',
+    title: 'Prosody',
+    icon: Music,
+    desc: 'Intonation, stress, and rhythm analysis.',
+    color: 'text-indigo-600',
+    bgClass: 'bg-indigo-50 border-indigo-100 hover:border-indigo-200',
     params: [
-      'Pitch (F0)',
-      'Loudness',
-      'Quality (breathy/hoarse/strained)',
-      'Phonation range',
-      'Maximum phonation time',
-      'S/Z ratio',
-      'Voice handicap index (clinical scale)'
+      'Pitch contour',
+      'Pitch variability',
+      'Stress pattern accuracy',
+      'Rhythm & pausing pattern',
+      'Rate of speech (WPM)',
+      'Prosody severity index'
+    ],
+    tasks: [
+      { id: 'scripted_prosody', label: 'Scripted Sentences', desc: 'Intonation Control' },
+      { id: 'conversation', label: 'Conversation', desc: 'Natural Rhythm' },
+      { id: 'emotion_prosody', label: 'Emotion Task', desc: 'Affective Prosody' },
+      { id: 'stress_shift', label: 'Stress-Shift', desc: 'Lexical Stress' },
+      { id: 'intonation_imitation', label: 'Intonation Imitation', desc: 'Contour Matching' },
+      { id: 'reading_prosody', label: 'Reading Passage', desc: 'Phrasing & Pause' }
     ]
   },
   {
@@ -94,27 +129,41 @@ const ASSESSMENT_DOMAINS: DomainData[] = [
     bgClass: 'bg-cyan-50 border-cyan-100 hover:border-cyan-200',
     params: [
       'Frequency of disfluencies',
-      'Types of disfluencies (part-word, whole-word, blocks)',
+      'Types of disfluencies',
       'Duration of stuttering moments',
       'Secondary behaviors',
       'Speech rate',
       'Fluency severity score'
+    ],
+    tasks: [
+      { id: 'conversation', label: 'Conversation', desc: 'Spontaneous Flow' },
+      { id: 'reading_fluency', label: 'Reading Passage', desc: 'Standard Text' },
+      { id: 'picture_desc', label: 'Picture Description', desc: 'Narrative Flow' },
+      { id: 'narrative', label: 'Narrative Task', desc: 'Story Retell' },
+      { id: 'automatic_speech', label: 'Automatic Speech', desc: 'Counting/Days' }
     ]
   },
   {
     id: 'phonology',
-    title: 'Phonology',
+    title: 'Motor Speech / Phonology',
     icon: Brain,
-    desc: 'Pattern analysis and cognitive processing.',
+    desc: 'Motor planning and phonological patterns.',
     color: 'text-purple-600',
     bgClass: 'bg-purple-50 border-purple-100 hover:border-purple-200',
     params: [
-      'Phonological processes present',
-      'Age-appropriateness of processes',
+      'Phonological processes',
+      'Age-appropriateness',
       'Frequency of occurrence',
       'Consistency of errors',
-      'Phonological pattern analysis',
-      'Phonemic inventory'
+      'Phonemic inventory',
+      'DDK Rates / AMR-SMR'
+    ],
+    tasks: [
+      { id: 'ddk', label: 'DDK Rate', desc: 'Diadochokinesis' },
+      { id: 'amr_smr', label: 'AMR / SMR', desc: 'Motor Speed' },
+      { id: 'non_word', label: 'Non-word Repetition', desc: 'Processing' },
+      { id: 'multisyllabic', label: 'Multisyllabic Words', desc: 'Complexity' },
+      { id: 'auto_seq', label: 'Automatic Sequences', desc: 'Motor Automation' }
     ]
   }
 ];
@@ -127,9 +176,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, initialDomain
     return null;
   });
 
-  const handleStart = () => {
+  const handleStartTask = (protocolId: string) => {
     if (selectedDomain) {
-        onStart(selectedDomain.id);
+        onStart(selectedDomain.id, protocolId);
     }
   };
 
@@ -184,7 +233,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, initialDomain
                     <h3 className="font-bold text-slate-800 text-lg mb-1 group-hover:text-slate-900">{domain.title}</h3>
                     <p className="text-slate-500 text-xs leading-relaxed">{domain.desc}</p>
                     <div className="mt-4 flex items-center text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 gap-1">
-                        View Protocols <ChevronRight size={14} />
+                        View Tasks <ChevronRight size={14} />
                     </div>
                   </button>
                 ))}
@@ -206,7 +255,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, initialDomain
             </button>
             
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 border-b border-slate-100 pb-8">
+            <div className="flex flex-col md:flex-row md:items-center gap-6 mb-8 border-b border-slate-100 pb-8">
                <div className={`p-6 rounded-3xl ${selectedDomain.bgClass} bg-opacity-50 border-2`}>
                    <selectedDomain.icon size={48} className={selectedDomain.color} />
                </div>
@@ -224,53 +273,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, initialDomain
             {/* Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                
-               {/* Parameters List */}
-               <div className="lg:col-span-2">
-                  <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 shadow-sm">
-                     <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide mb-6 flex items-center gap-2">
-                        <Activity size={20} className="text-slate-400" />
-                        Parameters Analyzed
-                     </h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                         {selectedDomain.params.map((p, idx) => (
-                             <div key={idx} className="flex items-start gap-3 group">
-                                 <CheckCircle2 size={18} className={`mt-0.5 shrink-0 ${selectedDomain.color} opacity-70 group-hover:opacity-100 transition-opacity`} />
-                                 <span className="text-slate-700 font-medium leading-relaxed">{p}</span>
-                             </div>
-                         ))}
-                     </div>
-                  </div>
-                  
-                  <div className="mt-8 p-6 rounded-2xl border border-dashed border-slate-300 bg-white">
-                      <p className="text-sm text-slate-500 italic">
-                        * This assessment utilizes AI-driven acoustic analysis. Results are intended to support clinical decision-making by a licensed Speech-Language Pathologist.
-                      </p>
+               {/* Left: Task Selection Grid */}
+               <div className="lg:col-span-2 space-y-8">
+                  <div>
+                      <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide mb-6 flex items-center gap-2">
+                          <PlayCircle size={20} className="text-teal-600" />
+                          Select Clinical Task
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedDomain.tasks.map((task) => (
+                              <button 
+                                key={task.id}
+                                onClick={() => handleStartTask(task.id)}
+                                className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:bg-teal-50 hover:shadow-md transition-all text-left group bg-white"
+                              >
+                                  <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-teal-200 flex items-center justify-center shrink-0 transition-colors">
+                                      <selectedDomain.icon size={18} className="text-slate-500 group-hover:text-teal-700" />
+                                  </div>
+                                  <div>
+                                      <h4 className="font-bold text-slate-800 group-hover:text-teal-900">{task.label}</h4>
+                                      <p className="text-xs text-slate-500 mt-1">{task.desc}</p>
+                                  </div>
+                                  <div className="ml-auto self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <ChevronRight size={16} className="text-teal-600" />
+                                  </div>
+                              </button>
+                          ))}
+                      </div>
                   </div>
                </div>
 
-               {/* Action / Context Column */}
+               {/* Right: Parameters List */}
                <div className="flex flex-col gap-6">
-                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
-                       <h3 className="font-bold text-slate-800 mb-4">Assessment Ready</h3>
-                       <p className="text-sm text-slate-500 mb-6">
-                          Configure your environment. Ensure background noise is minimal before beginning the {selectedDomain.title.toLowerCase()} recording session.
-                       </p>
-                       <button 
-                          onClick={handleStart} 
-                          className="w-full bg-slate-900 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                       >
-                          <span>Begin Assessment</span>
-                          <ChevronRight size={20} />
-                       </button>
+                   <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                       <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4 flex items-center gap-2">
+                           <Activity size={16} className="text-slate-400" />
+                           Parameters Analyzed
+                       </h3>
+                       <div className="space-y-3">
+                           {selectedDomain.params.map((p, idx) => (
+                               <div key={idx} className="flex items-start gap-3">
+                                   <CheckCircle2 size={16} className={`mt-0.5 shrink-0 ${selectedDomain.color} opacity-70`} />
+                                   <span className="text-sm text-slate-600 leading-snug">{p}</span>
+                               </div>
+                           ))}
+                       </div>
                    </div>
 
-                   <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                       <h4 className="font-bold text-slate-700 text-sm mb-2">Instructions</h4>
-                       <ul className="text-sm text-slate-500 space-y-2 list-disc pl-4">
-                          <li>Position microphone 6 inches from mouth.</li>
-                          <li>Follow the on-screen prompts precisely.</li>
-                          <li>Speak in your natural volume and pitch.</li>
-                       </ul>
+                   <div className="p-6 rounded-2xl border border-dashed border-slate-300 bg-white">
+                       <p className="text-xs text-slate-500 italic leading-relaxed">
+                         * Select a task to configure the recording environment. All audio is processed securely for clinical analysis.
+                       </p>
                    </div>
                </div>
 
@@ -281,4 +334,3 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, initialDomain
     </div>
   );
 };
-    

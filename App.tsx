@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
-import { AudioRecorder } from './components/AudioRecorder';
+import { AudioRecorder, DEFAULT_PROTOCOLS } from './components/AudioRecorder';
 import { AnalysisDashboard } from './components/AnalysisDashboard';
 import { LandingPage } from './components/LandingPage';
 import { SettingsModal } from './components/SettingsModal';
 import { analyzeAudio } from './services/geminiService';
 import { AnalysisResult, AppState, Demographic, ProtocolDef, Language, BiologicalSex, ClinicProfile, ClientDetails, ViewMode, Dialect, AssessmentDomain } from './types';
-import { Eye, EyeOff, Settings, WifiOff, Cloud, CloudOff, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Settings, WifiOff, Cloud, CloudOff, ArrowLeft, CheckCircle2, Circle, FileOutput, Menu, ChevronRight } from 'lucide-react';
 
 function App() {
   const [appState, setAppState] = useState<AppState>(AppState.LANDING);
@@ -16,8 +15,9 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
-  // New state for the selected domain
+  // New state for the selected domain and protocol
   const [activeDomain, setActiveDomain] = useState<AssessmentDomain | null>(null);
+  const [activeProtocol, setActiveProtocol] = useState<string | undefined>(undefined);
   
   // Persist branding (simple state for demo, would be localstorage/db in prod)
   const [clinicProfile, setClinicProfile] = useState<ClinicProfile>({
@@ -63,9 +63,34 @@ function App() {
       sharedWith: []
   });
 
-  const handleStartAssessment = (domain: AssessmentDomain) => {
+  const handleStartAssessment = (domain: AssessmentDomain, protocolId?: string) => {
      setActiveDomain(domain);
+     setActiveProtocol(protocolId);
      setAppState(AppState.IDLE);
+  };
+
+  const handleNextTask = (domain: AssessmentDomain, protocolId: string) => {
+     setActiveDomain(domain);
+     setActiveProtocol(protocolId);
+     setAppState(AppState.IDLE);
+  };
+
+  const handleSwitchProtocol = (protocolId: string) => {
+      setActiveProtocol(protocolId);
+      // If we are currently viewing results, we might want to stay there if results exist for this protocol,
+      // but for simplicity and "assessment flow", we switch to the recorder view for the selected task
+      // unless we specifically want to view history.
+      // Checking if we have results for this protocol:
+      const existingResult = history.find(h => h.protocolId === protocolId || (DEFAULT_PROTOCOLS[protocolId] && h.protocolId === DEFAULT_PROTOCOLS[protocolId].title));
+      
+      if (existingResult) {
+          // If result exists, user might want to see it, or retake it. 
+          // Defaulting to recorder (IDLE) allows retaking, and Dashboard usually has a "History" tab.
+          // But to be "safe" and allow "switching", IDLE is safest state to ensure the Recorder props update.
+          setAppState(AppState.IDLE); 
+      } else {
+          setAppState(AppState.IDLE);
+      }
   };
 
   const handleBack = () => {
@@ -100,7 +125,9 @@ function App() {
 
         const audioUrl = URL.createObjectURL(audioBlob);
         result.audioUrl = audioUrl;
-
+        
+        // IMPORTANT: In this flow, we don't reset history if we are in a 'Session'.
+        // We append to history so we can generate a consolidated report.
         setHistory(prev => [...prev, result]);
         setAppState(AppState.RESULTS);
       } catch (error) {
@@ -116,6 +143,7 @@ function App() {
   };
 
   const handleReset = () => {
+    // Start a fresh session
     setHistory([]);
     setAppState(AppState.IDLE);
   };
@@ -127,6 +155,89 @@ function App() {
   const handleAddProtocol = (protocol: ProtocolDef) => {
     setCustomProtocols(prev => [...prev, protocol]);
   };
+
+  // Logic to find all remaining tasks in the current domain
+  const getDomainTasks = (): ProtocolDef[] => {
+      if (!activeDomain) return [];
+      const allProtocols: Record<string, ProtocolDef> = { 
+          ...DEFAULT_PROTOCOLS, 
+          ...customProtocols.reduce((acc, p) => ({...acc, [p.id]: p}), {} as Record<string, ProtocolDef>) 
+      };
+      return Object.values(allProtocols).filter(p => p.category === activeDomain || (p.isCustom && activeDomain === 'General'));
+  };
+  
+  const getRemainingTasks = (): ProtocolDef[] => {
+      const domainTasks = getDomainTasks();
+      const completedTaskTitles = history.map(h => h.protocolId); 
+      return domainTasks.filter(t => !completedTaskTitles.includes(t.title));
+  };
+
+  const remainingTasks = appState === AppState.RESULTS ? getRemainingTasks() : [];
+  
+  const domainTasks = getDomainTasks();
+  const completedCount = domainTasks.filter(t => history.some(h => h.protocolId === t.title)).length;
+  const totalCount = domainTasks.length;
+  const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+  // Task Sidebar Component
+  const TaskSidebar = () => (
+      <div className="w-72 bg-white border-r border-slate-200 flex flex-col h-[calc(100vh-64px)] fixed left-0 top-16 bottom-0 z-40 overflow-hidden shadow-lg animate-in slide-in-from-left-4 hidden lg:flex">
+          <div className="p-5 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Active Domain</h3>
+              <div className="flex items-center justify-between">
+                  <span className="text-lg font-bold text-slate-800 capitalize">{activeDomain}</span>
+                  <span className="text-xs font-bold bg-white px-2 py-1 rounded border border-slate-200 text-slate-600">
+                      {completedCount}/{totalCount}
+                  </span>
+              </div>
+              <div className="w-full bg-slate-200 h-1.5 rounded-full mt-3 overflow-hidden">
+                  <div className="h-full bg-teal-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+              </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              {domainTasks.map(task => {
+                  const isCompleted = history.some(h => h.protocolId === task.title);
+                  const isActive = activeProtocol === task.id;
+                  
+                  return (
+                      <button
+                          key={task.id}
+                          onClick={() => handleSwitchProtocol(task.id)}
+                          className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 group ${
+                              isActive 
+                              ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
+                              : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
+                          }`}
+                      >
+                          <div className={`mt-0.5 shrink-0 transition-colors ${isActive ? 'text-indigo-600' : isCompleted ? 'text-emerald-500' : 'text-slate-300'}`}>
+                              {isCompleted ? <CheckCircle2 size={18} className="fill-emerald-50" /> : <Circle size={18} />}
+                          </div>
+                          <div className="flex-1">
+                              <div className={`text-sm font-bold ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{task.title}</div>
+                              <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{task.description}</div>
+                          </div>
+                          {isActive && <div className="self-center"><ChevronRight size={14} className="text-indigo-400" /></div>}
+                      </button>
+                  );
+              })}
+          </div>
+
+          <div className="p-4 border-t border-slate-200 bg-slate-50">
+              <button 
+                  onClick={() => setAppState(AppState.RESULTS)} // Or specific report view logic
+                  className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${
+                      progress === 100 
+                      ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-md animate-pulse' 
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+              >
+                  <FileOutput size={18} />
+                  Unified Report
+              </button>
+          </div>
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -146,42 +257,40 @@ function App() {
           <>
             {/* Top Navigation Bar - Full Width */}
             <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm print:hidden">
-               <div className="flex items-center gap-2">
-                 {/* Back Button */}
-                 <button onClick={handleBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors mr-1" aria-label="Go Back">
+               <div className="flex items-center gap-4">
+                 <button onClick={handleBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors" aria-label="Go Back">
                     <ArrowLeft size={24} />
                  </button>
 
-                 <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">SS</div>
-                 <span className="font-bold text-slate-800 tracking-tight text-lg">SpeechSight</span>
+                 <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">SS</div>
+                    <span className="font-bold text-slate-800 tracking-tight text-lg hidden md:inline">SpeechSight</span>
+                 </div>
+
+                 {activeDomain && (
+                    <div className="h-6 w-px bg-slate-200 mx-2 hidden md:block"></div>
+                 )}
+                 
                  {activeDomain && (
                     <span className="hidden md:inline-flex text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-100 font-bold uppercase tracking-wider">
                         {activeDomain} Mode
                     </span>
                  )}
-                 <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-500 font-mono hidden sm:block">
-                     {clinicProfile.code}
-                 </span>
-                 
-                 {/* Cloud/Offline Indicators */}
-                 <div className="ml-4 flex items-center gap-2">
+               </div>
+               
+               <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 mr-4">
                      {effectiveOffline ? (
                          <div className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
                              <WifiOff size={12} /> Offline
                          </div>
                      ) : clinicProfile.enableCloudBackup ? (
                         <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200" title="Encrypted Backup Active">
-                            <Cloud size={12} /> Cloud Sync
+                            <Cloud size={12} /> Sync
                         </div>
-                     ) : (
-                        <div className="flex items-center gap-1 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200" title="Local Only">
-                            <CloudOff size={12} /> Local
-                        </div>
-                     )}
-                 </div>
-               </div>
-               
-               <div className="flex items-center gap-4">
+                     ) : null}
+                  </div>
+
                   <div className="bg-slate-100 p-1 rounded-lg flex items-center">
                       <button 
                         onClick={() => setViewMode('SLP')}
@@ -203,30 +312,39 @@ function App() {
                </div>
             </div>
 
-            <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:p-0 print:w-full print:max-w-none">
-              {appState === AppState.RESULTS && history.length > 0 ? (
-                <AnalysisDashboard 
-                  history={history} 
-                  onUpdateResult={handleUpdateResult}
-                  onReset={handleReset} 
-                  onRetry={handleRetry}
-                  clinicProfile={clinicProfile}
-                  onUpdateProfile={setClinicProfile}
-                  clientDetails={clientDetails}
-                  onUpdateClient={setClientDetails}
-                  viewMode={viewMode}
-                />
-              ) : (
-                <AudioRecorder 
-                  onAnalysisComplete={handleAnalysis} 
-                  isProcessing={appState === AppState.PROCESSING} 
-                  attemptNumber={history.length + 1}
-                  customProtocols={customProtocols}
-                  onAddProtocol={handleAddProtocol}
-                  isOffline={effectiveOffline}
-                  assessmentDomain={activeDomain || undefined}
-                />
-              )}
+            <div className="flex flex-1 relative">
+                {/* Fixed Left Sidebar for Task Navigation */}
+                {activeDomain && <TaskSidebar />}
+
+                {/* Main Content Area */}
+                <div className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:p-0 print:w-full print:max-w-none transition-all duration-300 ${activeDomain ? 'lg:pl-80' : ''}`}>
+                  {appState === AppState.RESULTS && history.length > 0 ? (
+                    <AnalysisDashboard 
+                      history={history} 
+                      onUpdateResult={handleUpdateResult}
+                      onReset={handleReset} 
+                      onRetry={handleRetry}
+                      clinicProfile={clinicProfile}
+                      onUpdateProfile={setClinicProfile}
+                      clientDetails={clientDetails}
+                      onUpdateClient={setClientDetails}
+                      viewMode={viewMode}
+                      remainingTasks={remainingTasks}
+                      onNextTask={handleNextTask}
+                    />
+                  ) : (
+                    <AudioRecorder 
+                      onAnalysisComplete={handleAnalysis} 
+                      isProcessing={appState === AppState.PROCESSING} 
+                      attemptNumber={history.length + 1}
+                      customProtocols={customProtocols}
+                      onAddProtocol={handleAddProtocol}
+                      isOffline={effectiveOffline}
+                      assessmentDomain={activeDomain || undefined}
+                      initialProtocolId={activeProtocol}
+                    />
+                  )}
+                </div>
             </div>
           </>
         )}
@@ -236,4 +354,3 @@ function App() {
 }
 
 export default App;
-    

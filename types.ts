@@ -1,4 +1,5 @@
 
+
 export interface OralPressureMetric {
   phoneme: string;
   pressure: number; // 0-100
@@ -260,6 +261,7 @@ export type ProtocolDef = {
   layout: 'list' | 'grid' | 'cards';
   note: string;
   isCustom?: boolean;
+  category?: AssessmentDomain | 'General'; // Added category for domain filtering
 };
 
 export type ProtocolType = 'vowels' | 'words' | 'mixed' | 'oral' | 'nasal' | 'conversation' | 'ddk' | 'mpd' | 'sz_ratio' | string;

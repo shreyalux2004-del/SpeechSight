@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Loader2, FileText, Info, CheckCircle2, Play, Volume2, Ear, AlertTriangle, Check, Scissors, User, Baby, Flag, Plus, Smartphone, MoveVertical, Edit, X, Globe, ChevronDown, Gamepad2, WifiOff } from 'lucide-react';
 import { Spectrogram } from './Spectrogram';
@@ -13,6 +12,7 @@ interface AudioRecorderProps {
   onAddProtocol: (protocol: ProtocolDef) => void;
   isOffline: boolean;
   assessmentDomain?: AssessmentDomain; // New prop
+  initialProtocolId?: string; // New prop for pre-selecting task
 }
 
 const DIALECT_OPTIONS: Record<Language, string[]> = {
@@ -25,23 +25,19 @@ const DIALECT_OPTIONS: Record<Language, string[]> = {
   Kannada: ["Mysore (Standard)", "North Karnataka", "Mangalore", "Bangalore"]
 };
 
-const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
+export const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
+  // --- VOICE DOMAIN ---
   vowels: { 
     id: 'vowels',
     title: 'Sustained Vowels',
     description: 'Voice quality stability (/a/, /i/, /u/).',
     focus: 'Jitter, Shimmer, HNR & Intensity',
     steps: {
-      English: ["Say 'ahhh' (5 seconds)", "Say 'eee' (5 seconds)", "Say 'ooo' (5 seconds)"],
-      Tamil: ["'ஆ' சொல்லுங்கள் (5 வினாடிகள்)", "'ஈ' சொல்லுங்கள் (5 வினாடிகள்)", "'ஊ' சொல்லுங்கள் (5 வினாடிகள்)"],
-      Malayalam: ["'ആ' പറയുക (5 സെക്കൻഡ്)", "'ഈ' പറയുക (5 സെക്കൻഡ്)", "'ഊ' പറയുക (5 സെക്കൻഡ്)"],
-      Bengali: ["বলুন 'আ' (৫ সেকেন্ড)", "বলুন 'ই' (৫ সেকেন্ড)", "বলুন 'উ' (৫ সেকেন্ড)"],
-      Hindi: ["बोले 'आ' (5 सेकंड)", "बोले 'ई' (5 सेकंड)", "बोले 'ऊ' (5 सेकंड)"],
-      Telugu: ["'ఆ' చెప్పండి (5 సెకన్లు)", "'ఈ' చెప్పండి (5 సెకన్లు)", "'ఊ' చెప్పండి (5 సెకన్లు)"],
-      Kannada: ["'ಆ' ಹೇಳಿ (5 ಸೆಕೆಂಡು)", "'ಈ' ಹೇಳಿ (5 ಸೆಕೆಂಡು)", "'ಊ' ಹೇಳಿ (5 ಸೆಕೆಂಡು)"]
+      English: ["Say 'ahhh' (5 seconds)", "Say 'eee' (5 seconds)", "Say 'ooo' (5 seconds)"]
     },
     layout: 'cards',
-    note: 'Isolates laryngeal function. Keep pitch and loudness steady.'
+    note: 'Isolates laryngeal function. Keep pitch and loudness steady.',
+    category: 'voice'
   },
   mpd: {
     id: 'mpd',
@@ -49,16 +45,11 @@ const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
     description: 'Respiratory capacity (MPD).',
     focus: 'Aerodynamics & Breath Support',
     steps: {
-      English: ["Take a deep breath...", "Say 'ahhh' for as long as you can."],
-      Tamil: ["ஆழ்ந்த மூச்சு விடுங்கள்...", "உங்களால் முடிந்தவரை 'ஆ' என்று சொல்லுங்கள்."],
-      Malayalam: ["ദീർഘമായി ശ്വാസമെടുക്കൂ...", "കഴിയുന്നത്ര നേരം 'ആ' എന്ന് പറയൂ."],
-      Bengali: ["গভীর শ্বাস নিন...", "যতক্ষণ পারেন 'আ' বলুন।"],
-      Hindi: ["गहरी साँस लें...", "जितनी देर हो सके 'आ' कहें।"],
-      Telugu: ["దీర్ఘ శ్వాస తీసుకోండి...", "మీకు సాధ్యమైనంత వరకు 'ఆ' అనండి."],
-      Kannada: ["ದೀರ್ಘ ಉಸಿರು ತೆಗೆದುಕೊಳ್ಳಿ...", "ನಿಮಗೆ ಸಾಧ್ಯವಾದಷ್ಟು ಹೊತ್ತು 'ಆ' ಹೇಳಿ."]
+      English: ["Take a deep breath...", "Say 'ahhh' for as long as you can."]
     },
     layout: 'cards',
-    note: 'Measures Maximum Phonation Duration (MPD). Indicates respiratory/laryngeal efficiency.'
+    note: 'Measures Maximum Phonation Duration (MPD).',
+    category: 'voice'
   },
   sz_ratio: {
     id: 'sz_ratio',
@@ -66,50 +57,135 @@ const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
     description: 'Laryngeal efficiency.',
     focus: 'Glottal Competence',
     steps: {
-      English: ["Take a deep breath. Say /s/ as long as you can.", "Take a deep breath. Say /z/ as long as you can."],
-      Tamil: ["மூச்சை இழுக்கவும். /s/ சத்தத்தை நீண்ட நேரம் எழுப்பவும்.", "மூச்சை இழுக்கவும். /z/ சத்தத்தை நீண்ட நேரம் எழுப்பவும்."],
-      Malayalam: ["ശ്വാസമെടുക്കൂ. /s/ കഴിയുന്നത്ര നേരം പറയൂ.", "ശ്വാസമെടുക്കൂ. /z/ കഴിയുന്നത്ര നേരം പറയൂ."],
-      Bengali: ["শ্বাস নিন। যতক্ষণ পারেন /s/ বলুন।", "শ্বাস নিন। যতক্ষণ পারেন /z/ বলুন।"],
-      Hindi: ["साँस लें। /s/ (स) जितनी देर हो सके बोलें।", "साँस लें। /z/ (ज़) जितनी देर हो सके बोलें।"],
-      Telugu: ["శ్వాస తీసుకోండి. /s/ సాధ్యమైనంత వరకు అనండి.", "శ్వాస తీసుకోండి. /z/ సాధ్యమైనంత వరకు అనండి."],
-      Kannada: ["ಉಸಿರು ತೆಗೆದುಕೊಳ್ಳಿ. /s/ ಸಾಧ್ಯವಾದಷ್ಟು ಹೊತ್ತು ಹೇಳಿ.", "ಉಸಿರು ತೆಗೆದುಕೊಳ್ಳಿ. /z/ ಸಾಧ್ಯವಾದಷ್ಟು ಹೊತ್ತು ಹೇಳಿ."]
+      English: ["Take a deep breath. Say /s/ as long as you can.", "Take a deep breath. Say /z/ as long as you can."]
     },
     layout: 'cards',
-    note: 's/z ratio > 1.4 suggests laryngeal pathology vs respiratory issue.'
+    note: 's/z ratio > 1.4 suggests laryngeal pathology.',
+    category: 'voice'
   },
+  pitch_glide: {
+    id: 'pitch_glide',
+    title: 'Pitch Glide',
+    description: 'Range flexibility.',
+    focus: 'Pitch Range (High-Low)',
+    steps: {
+      English: ["Glide from your lowest note to your highest note on /a/.", "Glide from your highest note to your lowest note on /a/."]
+    },
+    layout: 'cards',
+    note: 'Assesses physiological pitch range and control.',
+    category: 'voice'
+  },
+  loudness_var: {
+    id: 'loudness_var',
+    title: 'Loudness Variation',
+    description: 'Dynamic control.',
+    focus: 'Intensity Range',
+    steps: {
+      English: ["Say 'Hey!' softly.", "Say 'Hey!' at a conversational volume.", "Say 'Hey!' loudly (as if shouting across the street)."]
+    },
+    layout: 'cards',
+    note: 'Checks ability to modulate vocal intensity.',
+    category: 'voice'
+  },
+  grbas: {
+    id: 'grbas',
+    title: 'GRBAS Sample',
+    description: 'Standard reading for rating.',
+    focus: 'Perceptual Voice Quality',
+    steps: {
+      English: ["The blue spot is on the key again.", "How hard did he hit him?", "We were away a year ago."]
+    },
+    layout: 'list',
+    note: 'Standard sentences for Grade, Roughness, Breathiness, Asthenia, Strain.',
+    category: 'voice'
+  },
+  reading_voice: {
+    id: 'reading_voice',
+    title: 'Reading Passage (Voice)',
+    description: 'Connected speech.',
+    focus: 'Voice in Context',
+    steps: {
+      English: ["When the sunlight strikes raindrops in the air, they act like a prism and form a rainbow.", "The rainbow is a division of white light into many beautiful colors.", "These take the shape of a long round arch, with its path high above, and its two ends apparently beyond the horizon."]
+    },
+    layout: 'list',
+    note: 'Segment of the Rainbow Passage.',
+    category: 'voice'
+  },
+
+  // --- ARTICULATION DOMAIN ---
   words: {
     id: 'words',
     title: 'Word List',
     description: 'Targeted articulation.',
     focus: 'Phoneme Precision',
     steps: {
-      English: ["Puppy", "Baby", "Ticket", "Dad", "Coke", "Giggle", "Sister", "Zoo", "Money", "Noon"],
-      Tamil: ["படம் (Padam)", "தம்பி (Thambi)", "தாதா (Thaatha)", "காகம் (Kaagam)", "பாப்பா (Paappa)", "பூனை (Poonai)", "நாய் (Naai)", "மாமா (Maama)", "அம்மா (Amma)", "மணி (Mani)"],
-      Malayalam: ["പപ്പ (Pappa)", "തത്ത (Thatha)", "കാക്ക (Kaakka)", "പന്ത് (Panthu)", "അമ്മ (Amma)", "മാല (Maala)", "നദി (Nadhi)", "ചായ (Chaaya)", "വല (Vala)", "മരം (Maram)"],
-      Bengali: ["পাখি (Pakhi)", "বাবা (Baba)", "টাকা (Taka)", "দাদা (Dada)", "কাক (Kak)", "গরম (Gorom)", "মা (Ma)", "নাম (Nam)", "জল (Jol)", "ফুল (Phul)"],
-      Hindi: ["पापा (Papa)", "दादा (Dada)", "ताला (Taala)", "कबूतर (Kabootar)", "गमला (Gamla)", "पानी (Paani)", "नाना (Nana)", "आम (Aam)", "सांप (Saamp)", "जूता (Joota)"],
-      Telugu: ["పలక (Palaka)", "బంతి (Banthi)", "తాత (Thatha)", "డబ్బా (Dabba)", "కాకి (Kaaki)", "గద (Gada)", "అమ్మ (Amma)", "నాన్న (Naanna)", "పాట (Paata)", "మాట (Maata)"],
-      Kannada: ["ಪಾಪ (Paapa)", "ಬಾಟಲಿ (Baatali)", "ತೂಕ (Thooka)", "ದಸರಾ (Dasara)", "ಕಮಲ (Kamala)", "ಗಡಿಯಾರ (Gadiyaara)", "ಅಮ್ಮ (Amma)", "ನಾಯಿ (Naayi)", "ಮರ (Mara)", "ಸರ (Sara)"]
+      English: ["Puppy", "Baby", "Ticket", "Dad", "Coke", "Giggle", "Sister", "Zoo", "Money", "Noon"]
     },
     layout: 'grid',
-    note: 'Phonemically balanced list containing high-pressure plosives and nasals.'
+    note: 'Phonemically balanced list.',
+    category: 'articulation'
   },
+  repetition: {
+    id: 'repetition',
+    title: 'Sentence Repetition',
+    description: 'Recall and production.',
+    focus: 'Articulation accuracy',
+    steps: {
+      English: ["The dog ran home.", "She eats a red apple.", "The big yellow bus stopped."]
+    },
+    layout: 'list',
+    note: 'Assesses speech production under imitation load.',
+    category: 'articulation'
+  },
+  phoneme_words: {
+    id: 'phoneme_words',
+    title: 'Phoneme-Specific',
+    description: 'Targeted sounds (/r/, /l/, /s/).',
+    focus: 'Specific Error Patterns',
+    steps: {
+      English: ["Red", "Rabbit", "Carrot", "Door", "Leaf", "Yellow", "Ball", "Sun", "Messy", "Bus"]
+    },
+    layout: 'grid',
+    note: 'Focuses on common error sounds (Liquids, Fricatives).',
+    category: 'articulation'
+  },
+  minimal_pairs: {
+    id: 'minimal_pairs',
+    title: 'Minimal Pairs',
+    description: 'Phonemic contrast.',
+    focus: 'Discrimination & Production',
+    steps: {
+      English: ["Key - Tea", "Go - Doe", "Bow - Boat", "Sea - She", "Fan - Pan"]
+    },
+    layout: 'list',
+    note: 'Checks ability to signal meaning differences via phonemes.',
+    category: 'articulation'
+  },
+  picture_naming: {
+    id: 'picture_naming',
+    title: 'Picture Naming',
+    description: 'Confrontation naming.',
+    focus: 'Spontaneous Word Retrieval',
+    steps: {
+      English: ["(Describe: Cup)", "(Describe: Shoe)", "(Describe: House)", "(Describe: Tree)", "(Describe: Dog)"]
+    },
+    layout: 'cards',
+    note: 'Simulated picture naming task.',
+    category: 'articulation'
+  },
+
+  // --- RESONANCE DOMAIN ---
   mixed: {
     id: 'mixed',
     title: 'Mixed Sentences',
     description: 'General resonance check.',
     focus: 'Overall Intelligibility',
     steps: {
-      English: ["The rainbow is a division of white light into many beautiful colors.", "In the summer they sing a song.", "We go to the zoo on Sunday."],
-      Tamil: ["வானவில் பல வண்ணங்களால் ஆனது.", "கோடையில் அவர்கள் பாடுகிறார்கள்.", "நாங்கள் ஞாயிற்றுக்கிழமை உயிரியல் பூங்காவுக்குச் செல்கிறோம்."],
-      Malayalam: ["മഴവില്ല് മനോഹരമായ നിറങ്ങൾ നിറഞ്ഞതാണ്.", "വേനൽക്കാലത്ത് അവർ പാട്ടുപാടുന്നു.", "ഞായറാഴ്ച ഞങ്ങൾ മൃഗശാലയിൽ പോകുന്നു."],
-      Bengali: ["রংধনু অনেক সুন্দর রঙের সমষ্টি।", "গ্রীষ্মকালে তারা গান গায়।", "আমরা রবিবার চিড়িয়াখানায় যাই।"],
-      Hindi: ["इंद्रधनुष कई रंगों से बना है।", "गर्मियों में वे गाना गाते हैं।", "हम रविवार को चिड़ियाघर जाते हैं।"],
-      Telugu: ["ఇంద్రధనస్సు అనేక రంగులతో కూడి ఉంటుంది.", "వేసవిలో వారు పాటలు పాడతారు.", "మేము ఆదివారం జంతుప్రదర్శనశాలకు వెళ్తాము."],
-      Kannada: ["ಕಾಮನಬಿಲ್ಲು ಅನೇಕ ಸುಂದರ ಬಣ್ಣಗಳನ್ನು ಹೊಂದಿದೆ.", "ಬೇಸಿಗೆಯಲ್ಲಿ ಅವರು ಹಾಡುತ್ತಾರೆ.", "ನಾವು ಭಾನುವಾರ ಮೃಗಾಲಯಕ್ಕೆ ಹೋಗುತ್ತೇವೆ."]
+      English: ["The rainbow is a division of white light into many beautiful colors.", "In the summer they sing a song.", "We go to the zoo on Sunday."]
     },
     layout: 'list',
-    note: 'Representative mix of oral and nasal sounds for general rating.'
+    note: 'Representative mix of oral and nasal sounds.',
+    category: 'resonance'
   },
   oral: {
     id: 'oral',
@@ -117,16 +193,11 @@ const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
     description: 'High-pressure check.',
     focus: 'Hypernasality & Emission',
     steps: {
-      English: ["Popeye plays baseball.", "Buy baby a bib.", "Take a turtle to the tea party.", "Do it for Daddy.", "Keep the cookies in the kitchen."],
-      Tamil: ["பாப்பா பந்து விளையாடுகிறான்.", "தாத்தா கடைக்கு போனார்.", "பூனை பால் குடித்தது.", "காகம் கத்துகிறது.", "பாபு பாடம் படிக்கிறான்."],
-      Malayalam: ["പപ്പ പന്ത് കളിക്കുന്നു.", "കുട്ടിക്ക് കേക്ക് കൊടുക്കൂ.", "താത്ത കടയിൽ പോയി.", "കാക്ക കരയുന്നു.", "പൂച്ച പാൽ കുടിച്ചു."],
-      Bengali: ["বাবা বাজার যায়।", "কাক কা কা করে।", "পুতুল খেলা করে।", "টাপুর টুপুর বৃষ্টি পড়ে।", "দাদা দই খায়।"],
-      Hindi: ["पापा बिस्कुट खाते हैं।", "बबलू बैट से खेलता है।", "तोता डाल पर बैठा है।", "दादा जी चाय पीते हैं।", "काका कार चलाते हैं।"],
-      Telugu: ["పాప బంతితో ఆడుకుంటోంది.", "తాత గారు కాఫీ తాగారు.", "కాకి కావ్ కావ్ అంటుంది.", "బాలు బడికి వెళ్లాడు.", "పిల్లి పాలు తాగింది."],
-      Kannada: ["ಪಾಪ ಚೆಂಡು ಆಡುತ್ತಿದ್ದಾನೆ.", "ತಾತ ಕಾಫಿ ಕುಡಿದರು.", "ಕಾಗೆ ಕಾ ಕಾ ಎನ್ನುತ್ತಿದೆ.", "ಪುಟ್ಟ ಪಾಠ ಓದುತ್ತಿದ್ದಾನೆ.", "ಬಾಬು ಬಾಳೆಹಣ್ಣು ತಿನ್ನುತ್ತಾನೆ."]
+      English: ["Popeye plays baseball.", "Buy baby a bib.", "Take a turtle to the tea party.", "Do it for Daddy.", "Keep the cookies in the kitchen."]
     },
     layout: 'list',
-    note: 'Devoid of nasal consonants. Detects hypernasality. Focus on plosives.'
+    note: 'Devoid of nasal consonants. Detects hypernasality.',
+    category: 'resonance'
   },
   nasal: {
     id: 'nasal',
@@ -134,16 +205,61 @@ const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
     description: 'Hyponasality check.',
     focus: 'Hyponasal Resonance',
     steps: {
-      English: ["My mama made lemon jam.", "Many men moon the moon.", "Mom's name is Nanny.", "My mom makes money."],
-      Tamil: ["அம்மா மாம்பழம் வாங்கினார்.", "மாமா மணி அடித்தார்.", "நான் மாம்பழம் தின்றேன்.", "அம்மாவும் நானும் கடைக்குச் சென்றோம்."],
-      Malayalam: ["അമ്മ മാമ്പഴം വാങ്ങി.", "മാമൻ മണി അടിച്ചു.", "ഞാനും അമ്മയും നടന്നു.", "മഴ മാനം മുട്ടി."],
-      Bengali: ["মা মামাবাড়ি যাবে।", "মামুনি গান গায়।", "আমি আম খাই।", "নীল মনিহার।"],
-      Hindi: ["माँ ने खाना बनाया।", "मामा ने इनाम दिया।", "नाना ने कहानी सुनाई।", "मैं और माँ घूमने गए।"],
-      Telugu: ["అమ్మ అన్నం వండింది.", "మామ మల్లెపూలు తెచ్చాడు.", "నేను మామిడిపండు తిన్నాను.", "నానమ్మ నాకు కథ చెప్పింది."],
-      Kannada: ["ಅಮ್ಮ ಅಡುಗೆ ಮಾಡಿದರು.", "ಮಾಮ ಮನೆಗೆ ಬಂದರು.", "ನಾನು ಮಾವಿನಹಣ್ಣು ತಿಂದೆ.", "ನಾನಿ ನನಗೆ ಕಥೆ ಹೇಳಿದರು."]
+      English: ["My mama made lemon jam.", "Many men moon the moon.", "Mom's name is Nanny.", "My mom makes money."]
     },
     layout: 'list',
-    note: 'Loaded with /m/ and /n/. Detects hyponasality.'
+    note: 'Loaded with /m/ and /n/. Detects hyponasality.',
+    category: 'resonance'
+  },
+  high_pressure: {
+    id: 'high_pressure',
+    title: 'High-Pressure Words',
+    description: 'Nasal Emission check.',
+    focus: 'Velo-Pharyngeal Closure',
+    steps: {
+      English: ["Paper", "Puppy", "Baby", "Bobby", "Cookie", "Cake", "Sister", "Sissy"]
+    },
+    layout: 'grid',
+    note: 'Words requiring tight VP closure.',
+    category: 'resonance'
+  },
+  nasal_words: {
+    id: 'nasal_words',
+    title: 'Nasal-Only Words',
+    description: 'Hyponasality probe.',
+    focus: 'Nasal Patency',
+    steps: {
+      English: ["Mom", "Man", "Moon", "No", "Nine", "None", "Ring", "Long"]
+    },
+    layout: 'grid',
+    note: 'Should be fully resonated in the nose.',
+    category: 'resonance'
+  },
+  spontaneous_res: {
+    id: 'spontaneous_res',
+    title: 'Spontaneous (Resonance)',
+    description: 'Natural speech check.',
+    focus: 'Resonance in conversation',
+    steps: {
+      English: ["Tell me about your favorite food.", "Describe your room at home."]
+    },
+    layout: 'cards',
+    note: 'Listen for consistency of resonance.',
+    category: 'resonance'
+  },
+
+  // --- PROSODY DOMAIN ---
+  scripted_prosody: {
+    id: 'scripted_prosody',
+    title: 'Scripted Sentences',
+    description: 'Statement vs Question.',
+    focus: 'Intonation Contours',
+    steps: {
+      English: ["It is raining.", "Is it raining?", "I like ice cream.", "Do you like ice cream?"]
+    },
+    layout: 'list',
+    note: 'Contrast declarative vs interrogative contours.',
+    category: 'prosody'
   },
   conversation: {
     id: 'conversation',
@@ -151,50 +267,185 @@ const DEFAULT_PROTOCOLS: Record<string, ProtocolDef> = {
     description: 'Spontaneous speech.',
     focus: 'Prosody & Pragmatics',
     steps: {
-      English: ["Tell me about your favorite vacation.", "Describe how to make a sandwich.", "Tell me about your job or school."],
-      Tamil: ["உங்கள் விடுமுறைப் பயணத்தைப் பற்றி சொல்லுங்கள்.", "உங்களுக்கு பிடித்த உணவைப் பற்றி கூறுங்கள்.", "உங்கள் வேலை அல்லது பள்ளியைப் பற்றி சொல்லுங்கள்."],
-      Malayalam: ["നിങ്ങളുടെ അവധിക്കാലത്തെക്കുറിച്ച് പറയൂ.", "നിങ്ങൾക്ക് ഇഷ്ടപ്പെട്ട ഭക്ഷണത്തെക്കുറിച്ച് പറയൂ.", "നിങ്ങളുടെ ജോലിയെക്കുറിച്ചോ സ്കൂളിനെക്കുറിച്ചോ പറയൂ."],
-      Bengali: ["আপনার প্রিয় ছুটির দিন সম্পর্কে বলুন।", "আপনার প্রিয় খাবার সম্পর্কে বলুন।", "আপনার কাজ বা স্কুল সম্পর্কে বলুন।"],
-      Hindi: ["अपनी पसंदीदा छुट्टी के बारे में बताएं।", "अपने पसंदीदा खाने के बारे में बताएं।", "अपने काम या स्कूल के बारे में बताएं।"],
-      Telugu: ["మీకు ఇష్టమైన సెలవు గురించి చెప్పండి.", "మీకు ఇష్టమైన ఆహారం గురించి చెప్పండి.", "మీ ఉద్యోగం లేదా పాఠశాల గురించి చెప్పండి."],
-      Kannada: ["ನಿಮ್ಮ ನೆಚ್ಚಿನ ರಜೆಯ ಬಗ್ಗೆ ಹೇಳಿ.", "ನಿಮ್ಮ ನೆಚ್ಚಿನ ಊಟದ ಬಗ್ಗೆ ಹೇಳಿ.", "ನಿಮ್ಮ ಕೆಲಸ ಅಥವಾ ಶಾಲೆಯ ಬಗ್ಗೆ ಹೇಳಿ."]
+      English: ["Tell me about your favorite vacation.", "Describe how to make a sandwich."]
     },
     layout: 'cards',
-    note: 'Natural speech prosody, rate, and intelligibility.'
+    note: 'Natural speech prosody, rate, and intelligibility.',
+    category: 'prosody'
   },
+  emotion_prosody: {
+    id: 'emotion_prosody',
+    title: 'Emotion Task',
+    description: 'Affective prosody.',
+    focus: 'Emotional Expression',
+    steps: {
+      English: ["Say 'I am going home' angrily.", "Say 'I am going home' happily.", "Say 'I am going home' sadly."]
+    },
+    layout: 'cards',
+    note: 'Ability to modulate pitch/intensity for emotion.',
+    category: 'prosody'
+  },
+  stress_shift: {
+    id: 'stress_shift',
+    title: 'Stress-Shift Task',
+    description: 'Lexical stress.',
+    focus: 'Syllabic Stress',
+    steps: {
+      English: ["REcord (noun) vs reCORD (verb)", "PREsent (noun) vs preSENT (verb)", "OBject (noun) vs obJECT (verb)"]
+    },
+    layout: 'list',
+    note: 'Check differentiation of noun/verb pairs.',
+    category: 'prosody'
+  },
+  intonation_imitation: {
+    id: 'intonation_imitation',
+    title: 'Intonation Imitation',
+    description: 'Contour matching.',
+    focus: 'Pitch Modulation',
+    steps: {
+      English: ["Copy me: 'Up and Down'", "Copy me: 'Really?'", "Copy me: 'Yes, absolutely.'"]
+    },
+    layout: 'cards',
+    note: 'Capacity to reproduce pitch patterns.',
+    category: 'prosody'
+  },
+  reading_prosody: {
+    id: 'reading_prosody',
+    title: 'Reading Passage',
+    description: 'Connected speech.',
+    focus: 'Phrasing and Pausing',
+    steps: {
+      English: ["Read naturally: 'The north wind and the sun were disputing which was the stronger, when a traveler came along wrapped in a warm cloak.'"]
+    },
+    layout: 'list',
+    note: 'Analysis of breath groups and pauses.',
+    category: 'prosody'
+  },
+
+  // --- FLUENCY DOMAIN ---
+  reading_fluency: {
+    id: 'reading_fluency',
+    title: 'Reading Passage',
+    description: 'Standard text.',
+    focus: 'Disfluency Rate',
+    steps: {
+      English: ["There is a young rat named Arthur who could never make up his mind. Whenever his friends asked him if he would like to go out with them, he would only answer, 'I don't know.'"]
+    },
+    layout: 'list',
+    note: 'Standard reading sample (Arthur the Rat).',
+    category: 'fluency'
+  },
+  picture_desc: {
+    id: 'picture_desc',
+    title: 'Picture Description',
+    description: 'Narrative generation.',
+    focus: 'Fluency in Monologue',
+    steps: {
+      English: ["(Look at the scene) Tell me everything that is happening in this picture."]
+    },
+    layout: 'cards',
+    note: 'Often uses "Cookie Theft" picture context.',
+    category: 'fluency'
+  },
+  narrative: {
+    id: 'narrative',
+    title: 'Narrative Task',
+    description: 'Story retell.',
+    focus: 'Complex Language Fluency',
+    steps: {
+      English: ["Tell me the story of your favorite movie or book.", "Tell me what you did yesterday from morning to night."]
+    },
+    layout: 'cards',
+    note: 'Higher cognitive load task for fluency.',
+    category: 'fluency'
+  },
+  automatic_speech: {
+    id: 'automatic_speech',
+    title: 'Automatic Speech',
+    description: 'Low cognitive load.',
+    focus: 'Motor Fluency',
+    steps: {
+      English: ["Count from 1 to 20.", "Say the days of the week.", "Say the months of the year."]
+    },
+    layout: 'list',
+    note: 'Usually more fluent than spontaneous speech.',
+    category: 'fluency'
+  },
+
+  // --- MOTOR SPEECH / PHONOLOGY DOMAIN ---
   ddk: {
     id: 'ddk',
     title: 'DDK (AMR/SMR)',
     description: 'Motor speech rates.',
     focus: 'Rhythm & Speed',
     steps: {
-      English: ["Say /pʌ-pʌ-pʌ/ (Fast as possible)", "Say /tʌ-tʌ-tʌ/ (Fast as possible)", "Say /kʌ-kʌ-kʌ/ (Fast as possible)", "Say /pʌ-tʌ-kʌ/ (Sequence)"],
-      Tamil: ["சொல்லுங்கள் /ப-ப-ப/ (வேகமாக)", "சொல்லுங்கள் /த-த-த/ (வேகமாக)", "சொல்லுங்கள் /க-க-க/ (வேகமாக)", "சொல்லுங்கள் /ப-த-க/ (வரிசையாக)"],
-      Malayalam: ["പറയൂ /പ-പ-പ/ (വേഗത്തിൽ)", "പറയൂ /ത-ത-ത/ (വേഗത്തിൽ)", "പറയൂ /ക-ക-ക/ (വേഗത്തിൽ)", "പറയൂ /പ-ത-ക/ (തുടർച്ചയായി)"],
-      Bengali: ["বলুন /পা-পা-পা/ (দ্রুত)", "বলুন /টা-টা-টা/ (দ্রুত)", "বলুন /কা-কা-কা/ (দ্রুত)", "বলুন /পা-টা-কা/ (ক্রম অনুসারে)"],
-      Hindi: ["बोलें /प-प-प/ (तेजी से)", "बोलें /त-त-त/ (तेजी से)", "बोलें /क-क-क/ (तेजी से)", "बोलें /प-त-क/ (क्रम में)"],
-      Telugu: ["చెప్పండి /ప-ప-ప/ (వేగంగా)", "చెప్పండి /త-త-త/ (వేగంగా)", "చెప్పండి /క-క-క/ (వేగంగా)", "చెప్పండి /ప-త-క/ (వరుసగా)"],
-      Kannada: ["ಹೇಳಿ /ಪ-ಪ-ಪ/ (ವೇಗವಾಗಿ)", "ಹೇಳಿ /ತ-ತ-ತ/ (ವೇಗವಾಗಿ)", "ಹೇಳಿ /ಕ-ಕ-ಕ/ (ವೇಗವಾಗಿ)", "ಹೇಳಿ /ಪ-ತ-ಕ/ (ಅನುಕ್ರಮವಾಗಿ)"]
+      English: ["Say /pʌ-pʌ-pʌ/ (Fast as possible)", "Say /tʌ-tʌ-tʌ/ (Fast as possible)", "Say /kʌ-kʌ-kʌ/ (Fast as possible)", "Say /pʌ-tʌ-kʌ/ (Sequence)"]
     },
     layout: 'cards',
-    note: 'Assesses speed, regularity, and precision of articulatory movements.'
+    note: 'Assesses speed, regularity, and precision.',
+    category: 'phonology'
   },
+  amr_smr: {
+    id: 'amr_smr',
+    title: 'AMR / SMR (Detailed)',
+    description: 'Alternating Motion.',
+    focus: 'Dysdiadochokinesis',
+    steps: {
+      English: ["AMR: 'puh-puh-puh'", "AMR: 'tuh-tuh-tuh'", "AMR: 'kuh-kuh-kuh'", "SMR: 'puh-tuh-kuh'"]
+    },
+    layout: 'list',
+    note: 'Detailed breakdown of motor tasks.',
+    category: 'phonology'
+  },
+  non_word: {
+    id: 'non_word',
+    title: 'Non-word Repetition',
+    description: 'Phonological processing.',
+    focus: 'Working Memory & Planning',
+    steps: {
+      English: ["Na-ma", "Bi-di-gi", "Do-re-mi-fa", "Va-sa-na-pa"]
+    },
+    layout: 'list',
+    note: 'Removes semantic lexical support.',
+    category: 'phonology'
+  },
+  multisyllabic: {
+    id: 'multisyllabic',
+    title: 'Multisyllabic Words',
+    description: 'Complex articulation.',
+    focus: 'Syllable Integrity',
+    steps: {
+      English: ["Ambulance", "Hippopotamus", "Specific", "Aluminum", "Statistics"]
+    },
+    layout: 'list',
+    note: 'Challenges motor planning (Apraxia check).',
+    category: 'phonology'
+  },
+  auto_seq: {
+    id: 'auto_seq',
+    title: 'Automatic Sequences',
+    description: 'Motor automation.',
+    focus: 'Basic Motor Output',
+    steps: {
+      English: ["Count 1 to 10", "Days of the Week", "Alphabet A to Z"]
+    },
+    layout: 'cards',
+    note: 'Preserved in severe apraxia/aphasia?',
+    category: 'phonology'
+  },
+  
+  // Legacy/Other mappings
   cas_consistency: {
     id: 'cas_consistency',
     title: 'Repetition (CAS)',
     description: 'Check consistency.',
     focus: 'Motor Planning Stability',
     steps: {
-      English: ["Say 'Banana' 3 times", "Say 'Popcorn' 3 times", "Say 'Butterfly' 3 times"],
-      Tamil: ["'வாழைப்பழம்' என்று 3 முறை சொல்லவும்", "'பாப்கார்ன்' என்று 3 முறை சொல்லவும்", "'பட்டாம்பூச்சி' என்று 3 முறை சொல்லவும்"],
-      Malayalam: ["'ബനാന' എന്ന് 3 തവണ പറയുക", "'പോപ്‌കോൺ' എന്ന് 3 തവണ പറയുക", "'ബട്ടർഫ്ലൈ' എന്ന് 3 തവണ പറയുക"],
-      Bengali: ["'কলা' ৩ বার বলুন", "'পপকর্ন' ৩ বার বলুন", "'প্রজাপতি' ৩ বার বলুন"],
-      Hindi: ["'केला' 3 बार बोलें", "'पॉपकॉर्न' 3 बार बोलें", "'तितली' 3 बार बोलें"],
-      Telugu: ["'అరటిపండు' 3 సార్లు చెప్పండి", "'పాప్‌కార్న్' 3 సార్లు చెప్పండి", "'సీతాకోకచిలుక' 3 సార్లు చెప్పండి"],
-      Kannada: ["'ಬಾಳೆಹಣ್ಣು' 3 ಬಾರಿ ಹೇಳಿ", "'ಪಾಪ್‌ಕಾರ್ನ್' 3 ಬಾರಿ ಹೇಳಿ", "'ಚಿಟ್ಟೆ' 3 ಬಾರಿ ಹೇಳಿ"]
+      English: ["Say 'Banana' 3 times", "Say 'Popcorn' 3 times", "Say 'Butterfly' 3 times"]
     },
     layout: 'cards',
-    note: 'Detects token-to-token variability (e.g. nanana -> badada -> banana) typical of CAS.'
+    note: 'Detects token-to-token variability.',
+    category: 'phonology'
   }
 };
 
@@ -406,7 +657,8 @@ const CreateTaskModal = ({ onClose, onSave }: { onClose: () => void, onSave: (p:
          steps: prompts.split('\n').filter(s => s.trim().length > 0),
          layout: 'list',
          note: 'Client-specific task script.',
-         isCustom: true
+         isCustom: true,
+         category: 'General'
       };
       onSave(newProtocol);
       onClose();
@@ -448,12 +700,12 @@ const CreateTaskModal = ({ onClose, onSave }: { onClose: () => void, onSave: (p:
     );
 };
 
-export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete, isProcessing, attemptNumber, customProtocols, onAddProtocol, isOffline, assessmentDomain }) => {
+export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete, isProcessing, attemptNumber, customProtocols, onAddProtocol, isOffline, assessmentDomain, initialProtocolId }) => {
   const [activeProtocolId, setActiveProtocolId] = useState<string>('mixed');
   const [demographic, setDemographic] = useState<Demographic>('Adult');
   const [sex, setSex] = useState<BiologicalSex>('Male');
   const [language, setLanguage] = useState<Language>('English');
-  const [dialect, setDialect] = useState<string>('US - General'); // New
+  const [dialect, setDialect] = useState<string>('US - General'); 
   const [isRecording, setIsRecording] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -471,10 +723,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
 
   const allProtocols = { ...DEFAULT_PROTOCOLS };
   customProtocols.forEach(p => { allProtocols[p.id] = p; });
-  const activeProtocol = allProtocols[activeProtocolId] || allProtocols['mixed'];
-
-  const [noiseStatus, setNoiseStatus] = useState<'idle' | 'checking' | 'quiet' | 'noisy'>('idle');
-  const [noiseLevel, setNoiseLevel] = useState(0);
 
   // Update default dialect when language changes
   useEffect(() => {
@@ -482,6 +730,18 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
         setDialect(DIALECT_OPTIONS[language][0]);
     }
   }, [language]);
+
+  // Set initial protocol if passed prop
+  useEffect(() => {
+      if (initialProtocolId && allProtocols[initialProtocolId]) {
+          setActiveProtocolId(initialProtocolId);
+      }
+  }, [initialProtocolId]);
+
+  const activeProtocol = allProtocols[activeProtocolId] || Object.values(allProtocols)[0];
+
+  const [noiseStatus, setNoiseStatus] = useState<'idle' | 'checking' | 'quiet' | 'noisy'>('idle');
+  const [noiseLevel, setNoiseLevel] = useState(0);
 
   const checkEnvironment = async () => {
     setNoiseStatus('checking');
@@ -562,10 +822,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
       };
 
       mediaRecorder.onstop = async () => {
-        const rawBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        // Use the actual recording MIME type from the recorder, or fallback
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const rawBlob = new Blob(chunksRef.current, { type: mimeType });
         
         if (isOffline) {
-            // Simulate saving to queue logic in parent
             alert("Offline Mode: Analysis queued for later. Audio saved locally.");
             onAnalysisComplete(rawBlob, activeProtocol.title, demographic, sex, language, bookmarks, dialect);
             audioStream.getTracks().forEach(track => track.stop());
@@ -579,6 +840,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
           onAnalysisComplete(processedBlob, activeProtocol.title, demographic, sex, language, bookmarks, dialect);
         } catch (error) {
           console.error("Audio processing failed:", error);
+          // Send original blob if processing fails
           onAnalysisComplete(rawBlob, activeProtocol.title, demographic, sex, language, bookmarks, dialect);
         } finally {
           setIsTrimming(false);
@@ -610,6 +872,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
   };
 
   const renderStimulusContent = () => {
+    if (!activeProtocol) return null;
+    
     const { steps, layout } = activeProtocol;
     let displaySteps: string[] = [];
     if (Array.isArray(steps)) {
@@ -666,29 +930,36 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
               
               {/* Title & Description */}
               <div className="text-center lg:text-left flex-1 max-w-2xl">
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tight">
-                  {attemptNumber > 1 ? `Attempt #${attemptNumber}: ` : ''} 
-                  {assessmentDomain 
-                    ? `${assessmentDomain.charAt(0).toUpperCase() + assessmentDomain.slice(1)} Assessment`
-                    : 'Perceptual Assessment'
-                  }
+                <h1 className="text-3xl md:text-4xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
+                  {activeProtocol.title}
                 </h1>
-                <p className="text-slate-500 mt-3 text-lg leading-relaxed">
-                    {assessmentDomain 
-                      ? `Targeted ${assessmentDomain} analysis. Select a protocol to begin.`
-                      : 'Select a language and dialect profile. Read the prompts aloud.'
-                    }
+                <p className="text-slate-500 mt-2 text-lg leading-relaxed">
+                   {activeProtocol.description}
                 </p>
+                <div className="flex flex-wrap gap-2 mt-3 justify-center lg:justify-start">
+                     <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">
+                        {activeProtocol.focus}
+                     </span>
+                     {attemptNumber > 1 && (
+                        <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">
+                           Attempt #{attemptNumber}
+                        </span>
+                     )}
+                </div>
               </div>
 
               {/* Controls - Flex Layout (No Overlap) */}
-              <div className="flex flex-wrap justify-center lg:justify-end items-center gap-3 shrink-0 z-30">
+              <div className="relative flex flex-wrap justify-center lg:justify-end items-center gap-3 shrink-0 z-50 pointer-events-auto bg-white/80 backdrop-blur-sm p-2 rounded-xl border border-slate-100 shadow-sm">
                   
                   {/* Language Selector */}
-                  <div className="relative">
+                  <div className="relative z-50">
                       <button 
-                        onClick={() => { setShowLanguageDropdown(!showLanguageDropdown); setShowDialectDropdown(false); }}
-                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+                        onClick={(e) => { 
+                            e.stopPropagation();
+                            setShowLanguageDropdown(!showLanguageDropdown); 
+                            setShowDialectDropdown(false); 
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 hover:bg-slate-50 shadow-sm transition-all"
                       >
                         <Globe size={16} className="text-indigo-500" />
                         <span>{language}</span>
@@ -720,12 +991,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
                   </div>
                   
                   {/* Dialect Selector */}
-                  <div className="relative">
+                  <div className="relative z-40">
                         <button 
-                          onClick={() => { setShowDialectDropdown(!showDialectDropdown); setShowLanguageDropdown(false); }}
-                          className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 shadow-sm min-w-[160px] justify-between transition-all"
+                          onClick={(e) => { 
+                              e.stopPropagation();
+                              setShowDialectDropdown(!showDialectDropdown); 
+                              setShowLanguageDropdown(false); 
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 hover:bg-slate-50 shadow-sm min-w-[160px] justify-between transition-all"
                         >
-                            <span className="truncate max-w-[140px]">{dialect}</span>
+                            <span className="truncate max-w-[140px]">{dialect || 'Select Dialect'}</span>
                             <ChevronDown size={14} className={`opacity-50 transition-transform duration-200 ${showDialectDropdown ? 'rotate-180' : ''}`} />
                         </button>
 
@@ -767,33 +1042,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({ onAnalysisComplete
                   </div>
               </div>
           </div>
-      </div>
-
-      {/* Protocol Tabs */}
-      <div className="w-full max-w-6xl mb-8">
-        <div className="flex flex-wrap justify-center gap-2">
-          {Object.values(allProtocols).map((p) => (
-            <button
-              key={p.id}
-              onClick={() => !isRecording && setActiveProtocolId(p.id)}
-              disabled={isRecording || noiseStatus === 'checking'}
-              className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all border flex flex-col items-center min-w-[120px] ${
-                activeProtocolId === p.id 
-                  ? 'bg-slate-800 text-white border-slate-800 shadow-lg transform scale-[1.02]' 
-                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-              } ${isRecording || noiseStatus === 'checking' ? 'opacity-40 cursor-not-allowed' : ''}`}
-            >
-              <span>{p.title}</span>
-              <span className={`text-[10px] mt-1 font-normal opacity-80 ${activeProtocolId === p.id ? 'text-slate-300' : 'text-slate-400'}`}>
-                {p.isCustom ? 'Custom Task' : p.id === 'vowels' ? 'Voice Quality' : 'Standardized'}
-              </span>
-            </button>
-          ))}
-          <button onClick={() => setIsCreatingTask(true)} disabled={isRecording} className="px-4 py-3 rounded-xl text-sm font-semibold transition-all border border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:bg-white hover:border-teal-400 hover:text-teal-600 flex flex-col items-center justify-center min-w-[120px]">
-              <div className="flex items-center gap-1 mb-1"><Plus size={16} /> New Task</div>
-              <span className="text-[10px] font-normal opacity-80">Scripting</span>
-          </button>
-        </div>
       </div>
 
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8">

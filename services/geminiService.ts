@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AnalysisResult, Demographic, Language, BiologicalSex, AssessmentDomain } from "../types";
 
@@ -154,6 +153,7 @@ const getDomainSpecificPrompt = (domain?: AssessmentDomain): string => {
 };
 
 // --- SCHEMA DEFINITION ---
+// Removed "required" fields to allow flexibility for domain-specific responses
 
 const RESPONSE_SCHEMA: Schema = {
   type: Type.OBJECT,
@@ -166,8 +166,7 @@ const RESPONSE_SCHEMA: Schema = {
         culDeSac: { type: Type.NUMBER },
         nasalEmission: { type: Type.NUMBER },
         oralPressure: { type: Type.NUMBER },
-      },
-      required: ["hypernasality", "hyponasality", "culDeSac", "nasalEmission", "oralPressure"]
+      }
     },
     acousticNasalMetrics: {
       type: Type.OBJECT,
@@ -200,8 +199,7 @@ const RESPONSE_SCHEMA: Schema = {
             }
           }
         }
-      },
-      required: ["lowMidFrequencyRatio", "nasalResonanceIndex", "nasalResonanceSeverity", "nasalOralEnergyComparison"]
+      }
     },
     voiceMetrics: {
       type: Type.OBJECT,
@@ -218,8 +216,7 @@ const RESPONSE_SCHEMA: Schema = {
         hnr: { type: Type.NUMBER },
         qualityProfile: { type: Type.STRING, enum: ["Normal", "Breathy", "Rough", "Strained"] },
         stabilityScore: { type: Type.NUMBER }
-      },
-      required: ["fundamentalFrequency", "minPitch", "maxPitch", "jitter", "shimmer", "hnr", "qualityProfile", "stabilityScore"]
+      }
     },
     aerodynamics: {
       type: Type.OBJECT,
@@ -229,8 +226,7 @@ const RESPONSE_SCHEMA: Schema = {
         sDuration: { type: Type.NUMBER },
         zDuration: { type: Type.NUMBER },
         vitalCapacityEstimation: { type: Type.STRING, enum: ["Normal", "Reduced", "Significantly Reduced"] }
-      },
-      required: ["maxPhonationDuration", "szRatio", "vitalCapacityEstimation"]
+      }
     },
     articulation: {
       type: Type.OBJECT,
@@ -280,8 +276,7 @@ const RESPONSE_SCHEMA: Schema = {
                 precision: { type: Type.NUMBER }
             }
         }
-      },
-      required: ["pcc", "pvc", "intelligibility", "errorPattern", "wordLengthMetrics"]
+      }
     },
     fluency: {
         type: Type.OBJECT,
@@ -304,8 +299,7 @@ const RESPONSE_SCHEMA: Schema = {
             speechNaturalness: { type: Type.NUMBER },
             rateConsistency: { type: Type.STRING, enum: ["Consistent", "Variable", "Bursts"] },
             severity: { type: Type.STRING, enum: ["Normal", "Mild", "Moderate", "Severe", "Profound"] }
-        },
-        required: ["disfluencyIndex", "types", "severity"]
+        }
     },
     prosody: {
       type: Type.OBJECT,
@@ -337,8 +331,7 @@ const RESPONSE_SCHEMA: Schema = {
                 pausePattern: { type: Type.STRING }
             }
         }
-      },
-      required: ["speechRate", "intonationVariation", "prosodySeverityIndex", "pauseMetrics"]
+      }
     },
     nasalance: { type: Type.NUMBER },
     resonanceSeverity: { type: Type.NUMBER },
@@ -362,18 +355,7 @@ const RESPONSE_SCHEMA: Schema = {
             ddkRate: { type: Type.STRING }
         }
     }
-  },
-  required: [
-    "perceptualRatings", 
-    "acousticNasalMetrics", 
-    "voiceMetrics", 
-    "articulation", 
-    "prosody", 
-    "resonanceSeverityIndex", 
-    "resonanceType", 
-    "summary",
-    "fluency" 
-  ]
+  }
 };
 
 // --- API CLIENT ---
@@ -389,7 +371,13 @@ export const analyzeAudio = async (
   assessmentDomain?: AssessmentDomain,
   transcript?: string
 ): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY || '';
+  if (!apiKey) {
+      console.error("API_KEY is missing from environment.");
+      throw new Error("API Key missing");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const domainPrompt = getDomainSpecificPrompt(assessmentDomain);
   
@@ -409,9 +397,8 @@ export const analyzeAudio = async (
     **GENERAL INSTRUCTIONS (Apply if consistent with Domain rules):**
     1. **Normative Analysis:** Compare findings against ${demographic} ${sex} norms for pitch, DDK rates, and formant structures.
     2. **Acoustic Simulation:** Estimate values (Jitter, Shimmer, HNR, Formants) from the audio signal as a Virtual Signal Processor.
-    3. **Schema Compliance:** You MUST fill the JSON schema completely.
+    3. **Schema Compliance:** Fill the JSON schema as completely as possible for the target domain.
        - If a domain is IGNORED (due to the prompts above), return 0, null, or empty arrays for those specific fields.
-       - Do NOT omit required fields. Use neutral values (e.g. 0) for ignored domains.
   `;
 
   const response = await ai.models.generateContent({
@@ -494,7 +481,5 @@ export const analyzeAudio = async (
 };
 
 export const generateReferenceAudio = async (text: string, sex: BiologicalSex, language: Language): Promise<string | null> => {
-    // Basic TTS simulation hook - in production this would call the TTS API
-    // The previous request asked to implement this, but we are prioritizing the analysis logic here.
     return null; 
 };
